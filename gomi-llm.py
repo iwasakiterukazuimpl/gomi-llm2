@@ -119,7 +119,7 @@ def scrape_text(url):
                      (f" | 備考: {info['備考']}" if info['備考'] else "") for info in garbage_info])
 
 # ② テキストをチャンク分割
-def chunk_text(text, chunk_size=500, chunk_overlap=50):
+def chunk_text(text, chunk_size=1200, chunk_overlap=150):
     splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     return splitter.split_text(text)
 
@@ -128,13 +128,33 @@ def create_vector_store(chunks):
     embeddings = OpenAIEmbeddings()
     return FAISS.from_texts(chunks, embeddings)
 
+from langchain.prompts import PromptTemplate
+
+template = """あなたは札幌市のゴミ分別アシスタントです。
+以下の情報を元に、質問に対して正確かつ丁寧に回答してください。
+
+情報:
+{context}
+
+質問: {question}
+
+回答:"""
+
+CUSTOM_PROMPT_TEMPLATE = PromptTemplate(
+    template=template,
+    input_variables=["context", "question"]
+)
+
 # ④ 質問を処理して回答を生成
 def ask_question(vectorstore, query):
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
     qa = RetrievalQA.from_chain_type(
-        llm=ChatOpenAI(temperature=0, model="gpt-4"),
+        llm=ChatOpenAI(temperature=0.3, model="gpt-4"),
         chain_type="stuff",
-        retriever=retriever
+        retriever=retriever,
+        chain_type_kwargs={
+            "prompt": CUSTOM_PROMPT_TEMPLATE
+        }
     )
     return qa.run(query)
 
